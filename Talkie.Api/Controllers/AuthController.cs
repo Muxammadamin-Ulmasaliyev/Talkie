@@ -32,7 +32,7 @@ namespace Talkie.Api.Controllers
             var foundUser = await _userManager.FindByNameAsync(registerModel.Username);
             if (foundUser != null)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "User already exists!" });
+                return StatusCode(StatusCodes.Status409Conflict, new ResponseModel { Status = "Error", Message = "User already exists!" });
             }
 
             var user = new AppUser()
@@ -46,7 +46,7 @@ namespace Talkie.Api.Controllers
 
             if (!result.Succeeded)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "User creation failed! Password must contain lower, upper, symbols characters" });
+                return StatusCode(StatusCodes.Status400BadRequest, new ResponseModel { Status = "Error", Message = "User creation failed! Password must contain lower, upper, symbols characters" });
             }
 
             /*
