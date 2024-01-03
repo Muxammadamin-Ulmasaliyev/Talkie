@@ -15,6 +15,7 @@
         public string? JoinedAt { get; set; }
 
         public string? ProfileImageUrl { get; set; }
+        public string? ImageName { get; set; }
 
 
     }

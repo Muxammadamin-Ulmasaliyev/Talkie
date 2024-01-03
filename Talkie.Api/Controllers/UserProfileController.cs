@@ -1,15 +1,16 @@
 ﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Reflection.Metadata.Ecma335;
-using System.Security.Claims;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 using Talkie.Api.Models;
 using Talkie.Api.Profiles;
 using Talkie.Domain.Entities;
+
 
 namespace Talkie.Api.Controllers
 {
@@ -26,6 +27,7 @@ namespace Talkie.Api.Controllers
 
             var connectionString = configuration.GetConnectionString("profile-images");
             _blobServiceClient = new BlobServiceClient(connectionString);
+           
         }
 
 
@@ -70,6 +72,37 @@ namespace Talkie.Api.Controllers
 
         }
 
+        [AllowAnonymous]
+        [Route("profile-images/{imageName}")]
+        [HttpGet]
+        public async Task<IActionResult> GetProfileImage(string imageName)
+        {
+           // var user = await GetCurrentUser();
+            var containerName = "profile-images";
+            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = containerClient.GetBlobClient(imageName);
+            var imageStream = await blobClient.OpenReadAsync();
+
+            if (imageStream == null)
+                return NotFound("Image not found"); // Image not found
+
+            // Set the content type based on the image file extension
+            var contentType = GetContentTypeFromFileName(imageName);
+
+            return File(imageStream, contentType);
+        }
+
+        [NonAction]
+        private string GetContentTypeFromFileName(string fileName)
+        {
+            if (fileName.EndsWith(".jpg", System.StringComparison.OrdinalIgnoreCase))
+                return "image/jpeg";
+            if (fileName.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
+                return "image/png";
+
+
+            return "application/octet-stream"; // Default content type for binary data
+        }
 
         [Route("update-profile-image")]
         [HttpPut]
@@ -97,17 +130,42 @@ namespace Talkie.Api.Controllers
 
             using (var stream = image.OpenReadStream())
             {
-                await blobClient.UploadAsync(stream, true);
+                // OLD VERSION
+                //await blobClient.UploadAsync(stream, true);
+
+                // NEW VERSION (compress images)
+                var compressedStream  = CompressImage(stream);
+
+                await blobClient.UploadAsync(compressedStream, true);
+
             }
-            var imageUrl = blobClient.Uri.ToString();
-            user.ProfileImageUrl = imageUrl;
+
+            user.ImageName = fileName;
+            user.ProfileImageUrl = String.Concat("https://talkieapp.azurewebsites.net/api/UserProfile/profile-images/", user.ImageName); 
+
             var result = await _userManager.UpdateAsync(user);
 
             if (result.Succeeded)
                 return Ok("Profile image updated successfully");
             else
                 return BadRequest(result.Errors);
+        }
 
+        [NonAction]
+        public Stream CompressImage(Stream stream)
+        {
+            using (var image = Image.Load(stream))
+            {
+                image.Mutate(i => i.Resize(new ResizeOptions
+                {
+                    Size = new Size(800, 800),
+                    Mode = ResizeMode.Max
+                }));
+                var compressedStream = new MemoryStream();
+                image.Save(compressedStream, new JpegEncoder { Quality = 80 });
+                compressedStream.Position = 0;
+                return compressedStream;
+            }
         }
         [Route("all-users")]
         [HttpGet]

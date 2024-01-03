@@ -18,7 +18,8 @@ namespace Talkie.Api.Profiles
                 PhoneNumber = appUser.PhoneNumber,
                 Email = appUser.Email,
                 JoinedAt = appUser.JoinedAt.ToShortDateString(),
-                ProfileImageUrl = appUser.ProfileImageUrl
+                ProfileImageUrl = appUser.ProfileImageUrl,
+                ImageName = appUser.ImageName
 
 
             };

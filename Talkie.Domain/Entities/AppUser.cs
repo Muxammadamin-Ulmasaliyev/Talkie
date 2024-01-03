@@ -16,5 +16,6 @@ namespace Talkie.Domain.Entities
         public DateTime JoinedAt { get; set; } = DateTime.Now;
 
         public string? ProfileImageUrl { get; set; } = string.Empty;
+        public string? ImageName { get; set; } = string.Empty;
     }
 }
