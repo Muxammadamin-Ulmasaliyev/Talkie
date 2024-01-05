@@ -1,6 +1,8 @@
-﻿using Azure.Storage.Blobs;
+﻿using Asp.Versioning;
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +17,9 @@ using Talkie.Domain.Entities;
 namespace Talkie.Api.Controllers
 {
     [Authorize]
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
+
     public class UserProfileController : ControllerBase
     {
         private readonly UserManager<AppUser> _userManager;
@@ -27,18 +30,21 @@ namespace Talkie.Api.Controllers
 
             var connectionString = configuration.GetConnectionString("profile-images");
             _blobServiceClient = new BlobServiceClient(connectionString);
-           
+
         }
 
 
         [Route("update-user-profile")]
         [HttpPatch]
+        [ProducesResponseType(typeof(ResponseModel), 404)]
+        [ProducesResponseType(typeof(IdentityError), 400)]
+        [ProducesResponseType(typeof(ResponseModel), 200)]
         public async Task<IActionResult> UpdateUserInfo([FromForm] UserProfileUpdateModel model)
         {
             var user = await GetCurrentUser();
             if (user == null)
             {
-                return NotFound("User not found!");
+                return NotFound(new ResponseModel() { Status = "Error", Message = "User not found!" });
             }
             if (model.FirstName != null) user.FirstName = model.FirstName;
             if (model.LastName != null) user.LastName = model.LastName;
@@ -48,7 +54,7 @@ namespace Talkie.Api.Controllers
 
             var result = await _userManager.UpdateAsync(user);
             if (result.Succeeded)
-                return Ok("Profile updated successfully!");
+                return Ok(new ResponseModel() { Status = "Success", Message = "Profile updated successfully!" });
             else
                 return BadRequest(result.Errors);
 
@@ -57,6 +63,10 @@ namespace Talkie.Api.Controllers
 
         [Route("my-profile")]
         [HttpGet]
+        [ProducesResponseType(typeof(UserProfileModel), 200)]
+        [ProducesResponseType(typeof(ResponseModel), 404)]
+
+
         public async Task<IActionResult> GetCurrentUserProfile()
         {
             var userFromDb = await GetCurrentUser();
@@ -67,7 +77,7 @@ namespace Talkie.Api.Controllers
             }
             else
             {
-                return NotFound("User not found");
+                return NotFound(new ResponseModel() { Status = "Error", Message = "User not found!" });
             }
 
         }
@@ -75,16 +85,21 @@ namespace Talkie.Api.Controllers
         [AllowAnonymous]
         [Route("profile-images/{imageName}")]
         [HttpGet]
+        [ProducesResponseType(typeof(ResponseModel), 404)]
+        [ProducesResponseType(typeof(File), 200)]
+
+
+
         public async Task<IActionResult> GetProfileImage(string imageName)
         {
-           // var user = await GetCurrentUser();
+            // var user = await GetCurrentUser();
             var containerName = "profile-images";
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
             var blobClient = containerClient.GetBlobClient(imageName);
             var imageStream = await blobClient.OpenReadAsync();
 
             if (imageStream == null)
-                return NotFound("Image not found"); // Image not found
+                return NotFound(new ResponseModel() { Status = "Error", Message = "Image not found!" }); // Image not found
 
             // Set the content type based on the image file extension
             var contentType = GetContentTypeFromFileName(imageName);
@@ -93,7 +108,7 @@ namespace Talkie.Api.Controllers
         }
 
         [NonAction]
-        private string GetContentTypeFromFileName(string fileName)
+        private static string GetContentTypeFromFileName(string fileName)
         {
             if (fileName.EndsWith(".jpg", System.StringComparison.OrdinalIgnoreCase))
                 return "image/jpeg";
@@ -106,16 +121,25 @@ namespace Talkie.Api.Controllers
 
         [Route("update-profile-image")]
         [HttpPut]
+        [ProducesResponseType(typeof(ResponseModel), 404)]
+        [ProducesResponseType(typeof(ResponseModel), 400)]
+        [ProducesResponseType(typeof(IdentityError), 400)]
+        [ProducesResponseType(typeof(ResponseModel), 200)]
         public async Task<IActionResult> UpsertProfileImage([FromForm] IFormFile image)
         {
+            if (!(image.FileName.EndsWith(".jpg", System.StringComparison.OrdinalIgnoreCase) || image.FileName.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase)))
+            {
+                return BadRequest(new ResponseModel() { Status = "Error", Message = "Upload .jpg or .png image." });
+            }
             var user = await GetCurrentUser();
             if (user == null)
             {
-                return NotFound("User not found");
+                return NotFound(new ResponseModel() { Status = "Error", Message = "User not found!" });
+
             }
             if (image == null || image.Length <= 0)
             {
-                return BadRequest("Invalid file");
+                return BadRequest(new ResponseModel() { Status = "Error", Message = "Invalid file!" });
             }
             var containerName = "profile-images";
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
@@ -134,19 +158,19 @@ namespace Talkie.Api.Controllers
                 //await blobClient.UploadAsync(stream, true);
 
                 // NEW VERSION (compress images)
-                var compressedStream  = CompressImage(stream);
+                var compressedStream = CompressImage(stream);
 
                 await blobClient.UploadAsync(compressedStream, true);
 
             }
 
             user.ImageName = fileName;
-            user.ProfileImageUrl = String.Concat("https://talkieapp.azurewebsites.net/api/UserProfile/profile-images/", user.ImageName); 
+            user.ProfileImageUrl = String.Concat("https://talkieapp.azurewebsites.net/api/UserProfile/profile-images/", user.ImageName);
 
             var result = await _userManager.UpdateAsync(user);
 
             if (result.Succeeded)
-                return Ok("Profile image updated successfully");
+                return Ok(new ResponseModel() { Status = "Success", Message = "Profile image updated successfully" });
             else
                 return BadRequest(result.Errors);
         }
@@ -169,10 +193,11 @@ namespace Talkie.Api.Controllers
         }
         [Route("all-users")]
         [HttpGet]
-        public async Task<IEnumerable<AppUser>> GetAllUsers()
+        [ProducesResponseType(typeof(IEnumerable<AppUser>), 200)]
+        public async Task<IActionResult> GetAllUsers()
         {
             var users = await _userManager.Users.ToListAsync();
-            return users;
+            return Ok(users);
         }
         [NonAction]
         public async Task<AppUser> GetCurrentUser()
