@@ -17,8 +17,17 @@ namespace Talkie.Domain
 
         }
 
+        public DbSet<Post> Posts { get; set; }
+
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<AppUser>()
+                .HasMany(u => u.Posts)
+                .WithOne(p => p.AppUser)
+                .HasForeignKey(p => p.AppUserId);
+
             base.OnModelCreating(modelBuilder);
 
         }

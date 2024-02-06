@@ -1,10 +1,9 @@
-﻿using Asp.Versioning;
-using Azure.Storage.Blobs;
+﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -42,17 +41,22 @@ namespace Talkie.Api.Controllers
         public async Task<IActionResult> UpdateUserInfo([FromForm] UserProfileUpdateModel model)
         {
             var user = await GetCurrentUser();
+
             if (user == null)
             {
                 return NotFound(new ResponseModel() { Status = "Error", Message = "User not found!" });
             }
+
             if (model.FirstName != null) user.FirstName = model.FirstName;
             if (model.LastName != null) user.LastName = model.LastName;
             if (model.Bio != null) user.Bio = model.Bio;
             if (model.BirthDate != null) user.BirthDate = model.BirthDate;
             if (model.PhoneNumber != null) user.PhoneNumber = model.PhoneNumber;
+            if (model.Country != null) user.Country = model.Country;
+
 
             var result = await _userManager.UpdateAsync(user);
+
             if (result.Succeeded)
                 return Ok(new ResponseModel() { Status = "Success", Message = "Profile updated successfully!" });
             else
@@ -65,7 +69,6 @@ namespace Talkie.Api.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(UserProfileModel), 200)]
         [ProducesResponseType(typeof(ResponseModel), 404)]
-
 
         public async Task<IActionResult> GetCurrentUserProfile()
         {
@@ -87,9 +90,6 @@ namespace Talkie.Api.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(ResponseModel), 404)]
         [ProducesResponseType(typeof(File), 200)]
-
-
-
         public async Task<IActionResult> GetProfileImage(string imageName)
         {
             // var user = await GetCurrentUser();
@@ -114,9 +114,42 @@ namespace Talkie.Api.Controllers
                 return "image/jpeg";
             if (fileName.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
                 return "image/png";
-
-
+            
             return "application/octet-stream"; // Default content type for binary data
+        }
+
+        [Route("delete-profile-image")]
+        [HttpDelete]
+        public async Task<IActionResult> DeleteProfileImage()
+        {
+
+            var user = await GetCurrentUser();
+            if (user == null)
+            {
+                return NotFound(new ResponseModel() { Status = "Error", Message = "User not found!" });
+            }
+
+            var containerName = "profile-images";
+            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+            var imageName = user.ImageName;
+            var blobClient = containerClient.GetBlobClient(imageName);
+
+            var result = await blobClient.DeleteAsync();
+
+            user.ImageName = string.Empty;
+            user.ProfileImageUrl = string.Empty;
+            var userUpdateResult = await _userManager.UpdateAsync(user);
+
+            if (!userUpdateResult.Succeeded)
+            {
+                return BadRequest(userUpdateResult.Errors);
+            }
+
+            if (result.IsError)
+            {
+                return BadRequest(result);
+            }
+            return Ok(new ResponseModel() { Status = "Success", Message = result.ToString() });
         }
 
         [Route("update-profile-image")]
@@ -125,11 +158,12 @@ namespace Talkie.Api.Controllers
         [ProducesResponseType(typeof(ResponseModel), 400)]
         [ProducesResponseType(typeof(IdentityError), 400)]
         [ProducesResponseType(typeof(ResponseModel), 200)]
+
         public async Task<IActionResult> UpsertProfileImage([FromForm] IFormFile image)
         {
             if (!(image.FileName.EndsWith(".jpg", System.StringComparison.OrdinalIgnoreCase) || image.FileName.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase)))
             {
-                return BadRequest(new ResponseModel() { Status = "Error", Message = "Upload .jpg or .png image." });
+                return BadRequest(new ResponseModel() { Status = "Error", Message = "Please, upload .jpg or .png image." });
             }
             var user = await GetCurrentUser();
             if (user == null)
@@ -141,6 +175,7 @@ namespace Talkie.Api.Controllers
             {
                 return BadRequest(new ResponseModel() { Status = "Error", Message = "Invalid file!" });
             }
+
             var containerName = "profile-images";
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
 
@@ -191,14 +226,26 @@ namespace Talkie.Api.Controllers
                 return compressedStream;
             }
         }
+
+        [AllowAnonymous]
         [Route("all-users")]
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<AppUser>), 200)]
+        [ProducesResponseType(typeof(IEnumerable<UserProfileModel>), 200)]
         public async Task<IActionResult> GetAllUsers()
         {
             var users = await _userManager.Users.ToListAsync();
-            return Ok(users);
+            var models = new List<UserProfileModel>();
+            foreach (var user in users)
+            {
+                models.Add(Mapper.Map(user));
+            }
+            return Ok(models);
+
         }
+
+
+
+
         [NonAction]
         public async Task<AppUser> GetCurrentUser()
         {

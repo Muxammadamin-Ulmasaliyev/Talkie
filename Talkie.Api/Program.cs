@@ -6,10 +6,21 @@ using System.Text;
 using Talkie.Domain.Entities;
 using Talkie.Domain;
 using Microsoft.OpenApi.Models;
+using Talkie.Api.Middlewares;
+using Talkie.Data;
+using Talkie.Data.Repositories;
+using System.Configuration;
+using Talkie.Api.Services;
+using Talkie.Api.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySQL(builder.Configuration.GetConnectionString("Database")));
+
 // Add services to the container.
-builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Database")));
+//builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Database")));
 
 
 builder.Services.AddIdentity<AppUser, IdentityRole>()
@@ -43,9 +54,7 @@ builder.Services.AddAuthentication(options =>
     });
 
 
-
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen();
@@ -53,15 +62,26 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "ELibraryApi", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "TalkieApi", Version = "v1" });
 });
 
 
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IPostRepository, PostRepository>();   
+builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<IAzureBlobStorageService, AzureBlobStorageService>();
+
+
+
+
 var app = builder.Build();
+
+
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ELibraryApi v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "TalkieApi v1");
 });
 
 

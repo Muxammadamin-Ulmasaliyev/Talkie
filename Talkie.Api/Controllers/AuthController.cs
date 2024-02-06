@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 using Talkie.Api.Models;
 using Talkie.Domain.Entities;
 
@@ -32,7 +33,14 @@ namespace Talkie.Api.Controllers
 
         public async Task<IActionResult> Register(RegisterModel registerModel)
         {
+            if (!(registerModel.Username.Length > 2 && Regex.IsMatch(registerModel.Username,"^[a-zA-Z0-9_]+$")))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new ResponseModel { Status = "Error", Message = @"Username should consist of at least 3 letters and
+                                                                                                                     do not contain any symbols ( `_` is allowed)."});
+            }
+
             var foundUser = await _userManager.FindByNameAsync(registerModel.Username);
+
             if (foundUser != null)
             {
                 return StatusCode(StatusCodes.Status409Conflict, new ResponseModel { Status = "Error", Message = "User already exists!" });

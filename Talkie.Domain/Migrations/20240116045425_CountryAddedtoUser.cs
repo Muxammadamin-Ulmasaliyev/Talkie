@@ -5,15 +5,15 @@
 namespace Talkie.Domain.Migrations
 {
     /// <inheritdoc />
-    public partial class improvedGetProfileImageEndpoint : Migration
+    public partial class CountryAddedtoUser : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "ImageName",
+                name: "Country",
                 table: "AspNetUsers",
-                type: "nvarchar(max)",
+                type: "longtext",
                 nullable: true);
         }
 
@@ -21,7 +21,7 @@ namespace Talkie.Domain.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "ImageName",
+                name: "Country",
                 table: "AspNetUsers");
         }
     }

@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Talkie.Domain\Talkie.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
